@@ -9,8 +9,9 @@ import (
 	"github.com/jung-kurt/gofpdf"
 )
 
-type jsonStruct struct {
+type dataStruct struct {
 	Name string `json:"name"`
+	path, fileName string
 }
 
 func main() {
@@ -23,41 +24,40 @@ func main() {
 //templateHandler renders a template and returns as http response
 func templateHandler(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	t, err := template.ParseFiles("template.html")
-	if err != nil {
-		fmt.Fprintf(w, "Unable to load template")
-	}
-
-	data := jsonStruct{Name: "world"}
-	t.Execute(w, data)
-
 	if r.Method == http.MethodPost {
-
-		var tpl bytes.Buffer
-		if err := t.Execute(&tpl, data); err != nil {
-			fmt.Println(err)
+		data := dataStruct{
+			Name: "world", 
+			path: "template.html",
+			fileName: "template.pdf",
 		}
-		htmlStr := tpl.String()
-		htmlToPDF("template.pdf", htmlStr)
-
+		data.pdfDownload(w, r)
 	}
 }
 
-func htmlToPDF(path, htmlStr string) {
+func (data dataStruct) pdfDownload(w http.ResponseWriter, r *http.Request) {
 
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
 	pdf.SetFont("Arial", "B", 16)
 
-	html := pdf.HTMLBasicNew()
-	html.Write(40, htmlStr)
-
-	err := pdf.OutputFileAndClose(path)
+	t, err := template.ParseFiles(data.path)
 	if err != nil {
+		fmt.Println(w, "Unable to load template")
+	}
+
+	var tpl bytes.Buffer
+	if err := t.Execute(&tpl, data); err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println("PDF file has generated.")
+		htmlStr := tpl.String()
+		html := pdf.HTMLBasicNew()
+		html.Write(40, htmlStr)
+		fmt.Println("Success reading html from", data.path)
 	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=" + data.fileName)
+	w.Header().Set("Content-Type", "application/pdf")
+	pdf.Output(w)
+	fmt.Println("Success downloading file", data.fileName)
 
 }
